@@ -1,0 +1,2 @@
+include joker/nightly/VERSION
+include requirements.txt
