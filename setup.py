@@ -11,24 +11,33 @@ from setuptools import setup, find_packages
 # DO NOT import your package from your setup.py
 
 
+package_name = 'nightly'
+
+
 def readfile(filename):
     with open(filename) as f:
         return f.read()
 
 
-def getversion():
+def version_find():
     root = os.path.dirname(__file__)
-    with open(os.path.join(root, 'joker/nightly/VERSION')) as version_file:
-        version = version_file.read().strip()
-        regex = re.compile(r'^\d+\.\d+\.\d+$')
-        if not regex.match(version):
-            raise ValueError('VERSION file is corrupted')
-        return version
+    path = os.path.join(root, 'joker/{}/__init__.py'.format(package_name))
+    regex = re.compile(
+        r'''^__version__\s*=\s*('|"|'{3}|"{3})([.\w]+)\1\s*(#|$)''')
+    with open(path) as fin:
+        for line in fin:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            mat = regex.match(line)
+            if mat:
+                return mat.groups()[1]
+    raise ValueError('__version__ definition not found')
 
 
 config = {
     'name': "joker-nightly",
-    'version': getversion(),
+    'version': version_find(),
     'description': "A job runner based on apscheduler",
     'keywords': 'schedule',
     'url': "",
