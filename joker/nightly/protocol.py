@@ -8,8 +8,8 @@ import copy
 import sys
 import traceback
 
+from joker.broker.logging import LoggerBroker
 from joker.nightly import compat
-from joker.nightly.logging import LoggerBroker
 
 
 def standard_func(func, options, *a, **kw):
