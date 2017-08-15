@@ -153,80 +153,85 @@ class ResumableJob(object):
 
 class Command(object):
     name = ''
-    parser_params = {}
+    desc = ''
 
     @classmethod
-    def parse_args(cls, raw_args=None):
+    def add_arguments(cls, parser=None):
         """
-        必须保证该方法在 raw_args == [] 时不出错
-        :param raw_args:
-        :return:
+        Make sure every argument has a default or is optional
         """
         raise NotImplementedError
 
     @classmethod
-    def example_parse_args(cls, raw_args=None):
-        parser = argparse.ArgumentParser(description='a statscv command')
-        parser.add_argument('-c', '--config', default='offline')
-        return parser.parse_args(args=raw_args)
+    def parse_arguments(cls, raw_args=None):
+        """
+        :param raw_args:
+        :return: an `argparse.Namespace` instance
+        """
+        parser = argparse.ArgumentParser(description=cls.desc)
+        cls.add_arguments(parser)
+        return parser, parser.parse_args(raw_args)
 
     @classmethod
     def execute(cls, **params):
         """
-        该方法中，使用 params['option'] 来获取参数，而不是 params.get('option')
-        缺少参数直接抛出异常; 由 run 方法保证所有参数传入
+        In this method, plz access parameter with params[option],
+        instead of params.get(option).
+        Exception should be raised if some parameter is missing.
+        The `run` method should make sure all requiring parameters are passed
         """
         raise NotImplementedError
 
     @classmethod
     def run(cls, main=False, **params):
         """
-        :param main: 仅当需要从 sys.argv 获取参数时，传入 True
-        :param params:
-        :return:
+        :param main: bool. If true, access parameters from sys.argv
+        :param params: dict. Update argparse result with this dict.
         """
         if main:
-            nsp = cls.parse_args()
+            nsp = cls.parse_arguments()
         else:
-            # 获取参数默认值
-            # parse_args 方法须保证 raw_args == [] 时不出错
-            nsp = cls.parse_args([])
+            # get default arguments
+            nsp = cls.parse_arguments([])
         p = vars(nsp)
         p.update(params)
         cls.execute(**p)
 
 
 class TopCommand(object):
-    # TODO: remove this
-    name = 'statscv'
-    subs = dict()
+    desc = ''
+    subcommands = dict()
 
     @classmethod
-    def parse_args(cls, raw_args=None):
-        params = {
-            'usage': '{} [-h] subcommand ...'.format(sys.argv[0]),
-            'add_help': False
-        }
-        parser = argparse.ArgumentParser(**params)
-        parser.add_argument('subcommand', help='options: {}'.format(','.join(cls.subs.keys())))
-        cls.parser = parser
-        return parser.parse_known_args(args=raw_args)
+    def add_arguments(cls, parser=None):
+        raise NotImplementedError
 
     @classmethod
-    def register(cls, subcmd):
-        name = getattr(subcmd, 'name') or subcmd.__name__
-        cls.subs[name] = subcmd
+    def parse_arguments(cls, raw_args=None):
+        parser = argparse.ArgumentParser(description=cls.desc, add_help=False)
+        cls.add_arguments(parser)
+        subparsers = parser.add_subparsers(dest='subcmd', metavar='subcommand')
+        for name, cmd in cls.subcommands.items():
+            subp = subparsers.add_parser(name, help=cmd.desc)
+            cmd.add_arguments(subp)
+        return parser, parser.parse_args(args=raw_args)
 
     @classmethod
-    def run(cls):
-        nsp, extra_args = cls.parse_args()
-        subcmd = cls.subs.get(nsp.subcommand)
+    def register(cls, subcommand):
+        cls.subcommands[subcommand.name] = subcommand
+
+    @classmethod
+    def run(cls, **params):
+        parser, nsp = cls.parse_arguments()
+        subcmd = cls.subcommands.get(nsp.subcmd)
+
         if not subcmd:
-            cls.parser.print_help()
+            parser.print_help()
             return
+            # m = "unknown sub command '{}'".format(subcmd)
+            # raise ValueError(m)
 
-        print('ok', subcmd, extra_args)
-        if subcmd:
-            subcmd.parser_params['prog'] = '{} {}'.format(sys.argv[0], nsp.subcommand)
-            nsp = subcmd.parse_args(raw_args=extra_args)
-            subcmd.execute(**vars(nsp))
+        p = vars(nsp)
+        p.update(params)
+        subcmd.execute(**p)
+
