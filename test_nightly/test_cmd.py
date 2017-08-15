@@ -46,7 +46,11 @@ class CmdTop(TopCommand):
         )
 
 
-CmdTop.register(CmdA)
-CmdTop.register(CmdB)
-CmdTop.run()
+def run():
+    CmdTop.register(CmdA)
+    CmdTop.register(CmdB)
+    CmdTop.run()
 
+
+if __name__ == '__main__':
+    run()
