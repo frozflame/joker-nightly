@@ -1,3 +1,2 @@
 apscheduler
-futures
 joker-broker
