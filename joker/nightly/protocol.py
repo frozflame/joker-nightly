@@ -5,11 +5,45 @@ from __future__ import division, print_function
 
 import argparse
 import copy
+import logging
 import sys
 import traceback
 
-from joker.broker.logging import LoggerBroker
 from joker.nightly import compat
+
+
+class LoggerScope(object):
+    """
+    mostly just do this in each module:
+        loggerscope = LoggerScope(__name__)
+
+    and use like:
+        loggerscope.logger.info('data loaded')
+    """
+
+    primary_logger_name = ''
+
+    def __init__(self, name):
+        self.name = name
+
+    @classmethod
+    def config_logger(cls, name, log_level, path=None):
+        logger = logging.getLogger(name)
+        logger.setLevel(log_level)
+        logger.handlers = []
+        if path:
+            handler = logging.FileHandler(path)
+        else:
+            handler = logging.StreamHandler()
+        handler.setLevel(log_level)
+
+        fmt = '%(asctime)s [%(process)d] [%(levelname)s] %(message)s'
+        handler.setFormatter(logging.Formatter(fmt))
+        logger.addHandler(handler)
+
+    @property
+    def logger(self):
+        return logging.getLogger(self.primary_logger_name or self.name)
 
 
 def standard_func(func, options, *a, **kw):
@@ -26,12 +60,12 @@ def standard_func(func, options, *a, **kw):
     stderr = options.get('stderr')
     o = open(stdout, 'a') if stdout else sys.stdout
     e = open(stderr, 'a') if stderr else sys.stderr
-    LoggerBroker.primary_logger_name = options.get('id')
+    LoggerScope.primary_logger_name = options.get('id')
 
     with compat.redirect_stdout(o), compat.redirect_stderr(e):
         try:
             func(*a, **kw)
-        except:
+        except Exception:
             traceback.print_exc()
 
 
@@ -80,13 +114,13 @@ class NightlyTask(object):
         name = self.nightly_options.get('id')
         path = self.nightly_options.get('stderr')
         log_level = self.nightly_options.get('log_level', 'INFO')
-        LoggerBroker.config_logger(name, log_level, path)
+        LoggerScope.config_logger(name, log_level, path)
 
     @staticmethod
     def conf_aps_logger(level='INFO'):
         """config apscheduler logger"""
-        LoggerBroker.config_logger(None, level)
-        LoggerBroker.config_logger('apscheduler.scheduler', level)
+        LoggerScope.config_logger(None, level)
+        LoggerScope.config_logger('apscheduler.scheduler', level)
 
 
 class ExclusiveJobRunning(Exception):
@@ -234,4 +268,3 @@ class TopCommand(object):
         p = vars(nsp)
         p.update(params)
         subcmd.execute(**p)
-
